@@ -5,7 +5,7 @@ export type View = 'overview' | 'digitaltwin' | 'map' | 'deepdive' | 'governance
 interface SidebarProps { activeView: View; onNavigate: (view: View) => void; alertCount: number; onProfile: ()=>void; user: {name:string; role:string}; }
 const navItems: { id: View; label: string; icon: typeof ShieldCheck; desc: string }[] = [
   { id: 'overview', label: 'Executive Overview', icon: LayoutDashboard, desc: 'Live KPIs & audit queue' },
-  { id: 'digitaltwin', label: 'Digital Twin', icon: Box, desc: 'Expected vs observed state' },
+  { id: 'digitaltwin', label: 'Digital Twin', icon: Box, desc: 'Live project state & risk' },
   { id: 'governance', label: 'Governance Intelligence', icon: Landmark, desc: 'Roles, compliance & decisions' },
   { id: 'map', label: 'Ward Risk Map', icon: Map, desc: 'Geospatial risk view' },
   { id: 'deepdive', label: 'Fraud Detection Deep-Dive', icon: FileSearch, desc: 'Evidence & investigations' },
