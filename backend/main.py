@@ -16,16 +16,30 @@ THRESHOLD_PERCENT = 20.0
 
 def money(v: Any) -> float:
     try:
-        return float(str(v).replace(',', '').replace('₹', '').strip() or 0)
+        return float(str(v).replace(',', '').replace('₹', '').replace('%', '').strip() or 0)
     except Exception:
         return 0.0
 
 
+def series_from(df: pd.DataFrame, *names: str) -> pd.Series:
+    for name in names:
+        if name in df.columns:
+            return pd.to_numeric(df[name], errors='coerce').fillna(0)
+    return pd.Series(0.0, index=df.index)
+
+
+def value_from_row(row: pd.Series, *names: str) -> Any:
+    for name in names:
+        if name in row.index:
+            return row.get(name)
+    return 0
+
+
 def score_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
     numeric = pd.DataFrame({
-        'budget': pd.to_numeric(df.get('sanctioned_amount', 0), errors='coerce').fillna(0),
-        'expenditure': pd.to_numeric(df.get('expenditure', 0), errors='coerce').fillna(0),
-        'progress': pd.to_numeric(df.get('physical_progress', 0), errors='coerce').fillna(0),
+        'budget': series_from(df, 'sanctioned_amount', 'sanctioned_cost', 'budget'),
+        'expenditure': series_from(df, 'expenditure', 'actual_expenditure', 'amount_spent'),
+        'progress': series_from(df, 'physical_progress', 'progress'),
     })
     if len(numeric) >= 3 and numeric.nunique().sum() > 1:
         model = IsolationForest(n_estimators=150, contamination='auto', random_state=42)
@@ -34,17 +48,23 @@ def score_rows(df: pd.DataFrame) -> list[dict[str, Any]]:
     else:
         labels = [1] * len(df)
         anomaly = [0.0] * len(df)
+
     rows = []
     for i, (_, r) in enumerate(df.iterrows()):
-        budget = money(r.get('sanctioned_amount', 0)); expenditure = money(r.get('expenditure', 0))
-        inflation = money(r.get('inflation_percentage', 0)); progress = money(r.get('physical_progress', 0))
-        delay = max(0.0, money(r.get('expected_progress', progress)) - progress)
+        budget = money(value_from_row(r, 'sanctioned_amount', 'sanctioned_cost', 'budget'))
+        expenditure = money(value_from_row(r, 'expenditure', 'actual_expenditure', 'amount_spent'))
+        inflation = money(value_from_row(r, 'inflation_percentage', 'price_inflation_percentage'))
+        progress = money(value_from_row(r, 'physical_progress', 'progress'))
+        expected = money(value_from_row(r, 'expected_progress'))
+        delay = max(0.0, expected - progress) if expected else 0.0
         risk = 20.0 + (35.0 if inflation > THRESHOLD_PERCENT else inflation * 0.8) + min(25.0, delay * 0.5)
-        if labels[i] == -1: risk += 15.0
-        if budget and expenditure > budget: risk += 10.0
+        if labels[i] == -1:
+            risk += 15.0
+        if budget and expenditure > budget:
+            risk += 10.0
         risk = round(min(100.0, risk), 1)
         rows.append({
-            'work_id': str(r.get('work_id', f'ROW-{i+1}')),
+            'work_id': str(value_from_row(r, 'work_id', 'work_code', 'project_id', 'serial_no', 'sl_no') or f'ROW-{i+1}'),
             'risk_score': risk,
             'risk_level': 'high' if risk >= 75 else 'medium' if risk >= 50 else 'low',
             'anomaly': bool(labels[i] == -1),
@@ -64,28 +84,43 @@ def health():
 @app.post('/audit/upload')
 async def audit_upload(file: UploadFile = File(...)):
     content = await file.read()
-    df = pd.read_excel(BytesIO(content)) if file.filename.lower().endswith(('xlsx', 'xls')) else pd.read_csv(BytesIO(content))
+    filename = (file.filename or '').lower()
+    if filename.endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(BytesIO(content))
+    elif filename.endswith('.csv'):
+        df = pd.read_csv(BytesIO(content))
+    else:
+        return {'success': False, 'message': 'Upload must be CSV, XLSX, or XLS'}
     return {'success': True, 'rows': score_rows(df), 'count': len(df), 'threshold_percent': THRESHOLD_PERCENT}
 
 
 @app.post('/audit/certificate')
 async def certificate(work_id: str, risk_score: float, status: str = 'PENDING_REVIEW'):
-    out = BytesIO(); c = canvas.Canvas(out, pagesize=A4); width, height = A4
+    out = BytesIO()
+    c = canvas.Canvas(out, pagesize=A4)
+    width, height = A4
     c.setTitle(f'KAVACH AI Audit Certificate - {work_id}')
-    c.setFont('Helvetica-Bold', 20); c.drawCentredString(width / 2, height - 90, 'KAVACH — AI AUDIT CERTIFICATE')
-    c.setFont('Helvetica', 10); c.drawCentredString(width / 2, height - 112, 'MPLADS Governance Intelligence & Fraud Forensics')
+    c.setFont('Helvetica-Bold', 20)
+    c.drawCentredString(width / 2, height - 90, 'KAVACH — AI AUDIT CERTIFICATE')
+    c.setFont('Helvetica', 10)
+    c.drawCentredString(width / 2, height - 112, 'MPLADS Governance Intelligence & Fraud Forensics')
     c.line(60, height - 130, width - 60, height - 130)
     y = height - 175
     for label, value in [('Work ID', work_id), ('AI Risk Score', f'{risk_score:.1f}/100'), ('Audit Status', status), ('Generated UTC', datetime.now(timezone.utc).isoformat())]:
-        c.setFont('Helvetica-Bold', 11); c.drawString(75, y, label); c.setFont('Helvetica', 11); c.drawString(210, y, value); y -= 34
-    c.setFont('Helvetica', 9); c.drawString(75, 105, 'Certificate generated by the KAVACH audit service. Verify against the system audit log before fund release.')
-    c.save(); return Response(out.getvalue(), media_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="KAVACH-{work_id}.pdf"'})
+        c.setFont('Helvetica-Bold', 11); c.drawString(75, y, label)
+        c.setFont('Helvetica', 11); c.drawString(210, y, value); y -= 34
+    c.setFont('Helvetica', 9)
+    c.drawString(75, 105, 'Certificate generated by the KAVACH audit service. Verify against the system audit log before fund release.')
+    c.save()
+    return Response(out.getvalue(), media_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="KAVACH-{work_id}.pdf"'})
 
 
 @app.post('/network/collusion')
 def collusion_network(records: list[dict[str, Any]]):
     g = nx.Graph()
     for r in records:
+        if 'from' not in r or 'to' not in r:
+            continue
         g.add_edge(str(r['from']), str(r['to']), relation=str(r.get('relation', 'linked')))
     suspicious = [list(e) for e in g.edges if g.degree(e[0]) >= 2 and g.degree(e[1]) >= 2]
     return {'nodes': list(g.nodes), 'edges': [{'from': a, 'to': b, **g.edges[a, b]} for a, b in g.edges], 'suspicious_edges': suspicious}
