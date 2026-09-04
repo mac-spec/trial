@@ -10,11 +10,15 @@ export interface RiskFeatures {
   expenditure_ratio: number;
 }
 
+export type RiskLevel = 'high' | 'medium' | 'low';
+
 const clamp = (n:number,min:number,max:number) => Math.min(max,Math.max(min,n));
 const harmonic = (n:number) => { if (n <= 1) return 0; let h=0; for(let i=1;i<=n;i++) h += 1/i; return h; };
 const c = (n:number) => n <= 1 ? 0 : 2*harmonic(n-1) - (2*(n-1)/n);
 
-function pathLength(tree:any, x:number[]):number {
+type ForestTree = { l: readonly number[]; r: readonly number[]; f: readonly number[]; t: readonly number[]; n: readonly number[] };
+
+function pathLength(tree:ForestTree, x:number[]):number {
   let node=0, depth=0;
   while (tree.l[node] !== -1) {
     const f=tree.f[node]; node = x[f] <= tree.t[node] ? tree.l[node] : tree.r[node]; depth++;
@@ -25,7 +29,7 @@ function pathLength(tree:any, x:number[]):number {
 
 export function isolationForestScore(features: RiskFeatures) {
   const x=[features.cost_overrun_pct,features.payment_gap_pct,features.progress_gap_pct,features.delay_days,features.duplicate_similarity,features.contractor_repeat_rate,features.expenditure_ratio];
-  const paths=(isolationForestModel.trees as any[]).map(t=>pathLength(t,x));
+  const paths=(isolationForestModel.trees as readonly ForestTree[]).map(t=>pathLength(t,x));
   const mean=paths.reduce((a,b)=>a+b,0)/paths.length;
   const raw=Math.pow(2,-mean/c(isolationForestModel.max_samples));
   const decision=raw + isolationForestModel.offset;
@@ -39,7 +43,8 @@ export function buildRiskFeatures(work:any): RiskFeatures {
   const payments=Math.max(Number(work.total_payments_released)||0,0);
   const progress=Number(work.physical_progress_percentage)||0;
   const expected=Number(work.expected_progress_percentage)||0;
-  const delay=Math.max(0, Number(work.delay_days)|| (work.target_date && new Date(work.target_date)<new Date() ? Math.round((Date.now()-new Date(work.target_date).getTime())/86400000) : 0));
+  const target=work.target_date ? new Date(work.target_date) : null;
+  const delay=Math.max(0, Number(work.delay_days)|| (target && !Number.isNaN(target.getTime()) && target<new Date() ? Math.round((Date.now()-target.getTime())/86400000) : 0));
   return {
     cost_overrun_pct: Math.max(0,((expenditure-budget)/budget)*100),
     payment_gap_pct: Math.max(0,((payments-expenditure)/budget)*100),
@@ -51,7 +56,7 @@ export function buildRiskFeatures(work:any): RiskFeatures {
   };
 }
 
-export function calculateRisk(work:any) {
+export function calculateRisk(work:any): { anomalyScore:number; decision:number; outlier:boolean; meanPathLength:number; features:RiskFeatures; ruleScore:number; riskScore:number; riskLevel:RiskLevel; explanations:string[]; model:string; modelTrainingSamples:number } {
   const features=buildRiskFeatures(work);
   const ml=isolationForestScore(features);
   const ruleSignals={
@@ -64,9 +69,10 @@ export function calculateRisk(work:any) {
   };
   const ruleScore=ruleSignals.cost*.24+ruleSignals.payment*.18+ruleSignals.progress*.18+ruleSignals.delay*.12+ruleSignals.duplicate*.16+ruleSignals.network*.12;
   const final=clamp(ml.anomalyScore*.65+ruleScore*.35,0,100);
-  const level=final>=75?'high':final>=50?'medium':'low';
-  const explanations=[
+  const level:RiskLevel=final>=75?'high':final>=50?'medium':'low';
+  const explanationCandidates:Array<[number,string]>=[
     [ruleSignals.cost,'cost estimate / expenditure outlier'],[ruleSignals.payment,'payment vs expenditure divergence'],[ruleSignals.progress,'physical progress lag'],[ruleSignals.delay,'schedule delay'],[ruleSignals.duplicate,'near-duplicate work similarity'],[ruleSignals.network,'contractor concentration pattern']
-  ].filter(x=>x[0]>25).sort((a,b)=>Number(b[0])-Number(a[0])).slice(0,3).map(x=>x[1]);
+  ];
+  const explanations=explanationCandidates.filter(([score])=>score>25).sort((a,b)=>b[0]-a[0]).slice(0,3).map(([,text])=>text);
   return { ...ml, features, ruleScore:Number(ruleScore.toFixed(1)), riskScore:Number(final.toFixed(1)), riskLevel:level, explanations, model:'Isolation Forest v1 + deterministic compliance rules', modelTrainingSamples:isolationForestModel.training_samples };
 }
