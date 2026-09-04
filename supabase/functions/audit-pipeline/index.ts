@@ -2,145 +2,88 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "POST required" }, 405);
 
   try {
-    const { work_id, mode } = await req.json();
+    const { work_id, mode = "freeze" } = await req.json();
+    if (!work_id) return json({ error: "work_id is required" }, 400);
 
-    if (!work_id) {
-      return new Response(
-        JSON.stringify({ error: "work_id is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRoleKey) return json({ error: "Supabase server configuration is missing" }, 500);
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    // Fetch the work order to get its budget
-    const { data: existing, error: fetchError } = await supabase
-      .from("work_orders")
-      .select("budget")
-      .eq("work_id", work_id)
-      .maybeSingle();
+    const { data: work, error: fetchError } = await supabase.from("work_orders").select("*").eq("work_id", work_id).maybeSingle();
+    if (fetchError) return json({ error: fetchError.message }, 500);
+    if (!work) return json({ error: "Work order not found" }, 404);
 
-    if (fetchError || !existing) {
-      return new Response(
-        JSON.stringify({ error: "Work order not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Vision analysis mode: analyze uploaded photo and update vision_forensics
     if (mode === "vision") {
-      // Simulate AI vision processing delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // The repository currently has no external VLM provider configured. Keep this path
+      // deterministic and transparent rather than generating random evidence.
+      const score = Number(work.shadow_geometry_score ?? 100);
+      const gpsVerified = work.gps_verified === true;
+      const timestampVerified = work.timestamp_verified === true;
+      const duplicateDetected = work.duplicate_detected === true;
+      const visionRisk = Math.min(100, (score < 70 ? 45 : 0) + (!gpsVerified ? 25 : 0) + (!timestampVerified ? 15 : 0) + (duplicateDetected ? 30 : 0));
 
-      // Generate plausible vision analysis results
-      const shadowScore = Math.round((40 + Math.random() * 40) * 10) / 10;
-      const gpsVerified = Math.random() > 0.3;
-      const timestampVerified = Math.random() > 0.2;
-      const duplicateDetected = Math.random() > 0.7;
+      const { error } = await supabase.from("vision_forensics").update({
+        ai_status: "completed",
+        updated_at: new Date().toISOString(),
+      }).eq("work_id", work_id);
+      if (error) return json({ error: error.message }, 500);
 
-      // Update vision_forensics with results
-      const { error: visionError } = await supabase
-        .from("vision_forensics")
-        .update({
-          shadow_geometry_score: shadowScore,
-          gps_verified: gpsVerified,
-          timestamp_verified: timestampVerified,
-          duplicate_detected: duplicateDetected,
-          ai_status: "completed",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("work_id", work_id);
-
-      if (visionError) {
-        return new Response(
-          JSON.stringify({ error: visionError.message }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // If shadow score is below 70, freeze funds
-      let fundsFrozen = false;
-      if (shadowScore < 70) {
-        const { error: freezeError } = await supabase
-          .from("work_orders")
-          .update({ status: "frozen", funds_frozen: existing.budget })
-          .eq("work_id", work_id);
-
-        if (!freezeError) {
-          await supabase
-            .from("vision_forensics")
-            .update({ ai_status: "funds_frozen" })
-            .eq("work_id", work_id);
-          fundsFrozen = true;
-        }
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          work_id,
-          mode: "vision",
-          shadow_geometry_score: shadowScore,
-          gps_verified: gpsVerified,
-          timestamp_verified: timestampVerified,
-          duplicate_detected: duplicateDetected,
-          funds_frozen: fundsFrozen,
-          status: fundsFrozen ? "FUNDS_FROZEN" : "COMPLETED",
-          message: fundsFrozen
-            ? `Vision analysis complete. Shadow/geometry score ${shadowScore}% below threshold. Funds frozen.`
-            : `Vision analysis complete. Shadow/geometry score ${shadowScore}%.`,
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return json({ success: true, work_id, mode, risk_score: visionRisk, risk_level: visionRisk >= 70 ? "high" : visionRisk >= 40 ? "medium" : "low", status: "COMPLETED", funds_frozen: false, message: "Vision record evaluated using available stored forensic evidence. Configure a VLM provider for image inference." });
     }
 
-    // Default mode: freeze funds (original behavior)
-    // Simulate AI pipeline processing delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Heuristic audit that works with the existing work_orders schema. If the government
+    // import contains optional inflation fields, they are used; otherwise the record stays
+    // reviewable without inventing a reference price.
+    const inflation = Number(work.inflation_percentage ?? work.price_inflation_percentage ?? 0);
+    const hasInflationSignal = Number.isFinite(inflation) && inflation > 0;
+    const inflationThreshold = 20;
+    let risk = Number(work.risk_score ?? 0);
+    if (hasInflationSignal) risk = Math.max(risk, Math.min(100, inflation * 3));
+    if (!work.contractor && !work.contractor_name) risk += 10;
+    if (!work.title) risk += 10;
+    if (!Number(work.budget) || Number(work.budget) <= 0) risk += 15;
+    risk = Math.min(100, Math.round(risk * 10) / 10);
 
-    const { data, error } = await supabase
-      .from("work_orders")
-      .update({
-        status: "frozen",
-        funds_frozen: existing.budget,
-      })
-      .eq("work_id", work_id)
-      .select()
-      .single();
+    const highRisk = risk >= 70 || (hasInflationSignal && inflation > inflationThreshold);
+    const mediumRisk = risk >= 40;
+    const riskLevel = highRisk ? "high" : mediumRisk ? "medium" : "low";
+    const nextStatus = highRisk ? "frozen" : "under_review";
+    const frozen = highRisk ? Number(work.budget ?? 0) : 0;
 
-    if (error) {
-      return new Response(
-        JSON.stringify({ error: error.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const { data, error } = await supabase.from("work_orders").update({
+      risk_score: risk,
+      risk_level: riskLevel,
+      status: nextStatus,
+      funds_frozen: frozen,
+    }).eq("work_id", work_id).select().single();
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        work_id,
-        status: "FUNDS_FROZEN",
-        funds_frozen: data.funds_frozen,
-        message: `AI pipeline completed. Work order ${work_id} funds have been frozen.`,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    if (error) return json({ error: error.message }, 500);
+    return json({
+      success: true,
+      work_id,
+      status: highRisk ? "FUNDS_FROZEN" : "AUDIT_COMPLETE",
+      funds_frozen: frozen,
+      risk_score: risk,
+      risk_level: riskLevel,
+      inflation_percentage: hasInflationSignal ? inflation : null,
+      inflation_threshold: inflationThreshold,
+      message: highRisk ? `High-risk audit completed. Funds frozen for ${work_id}.` : `Audit completed for ${work_id}; record moved to review.`,
+      work_order: data,
+    });
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: err instanceof Error ? err.message : "Unknown server error" }, 500);
   }
 });
