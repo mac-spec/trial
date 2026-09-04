@@ -45,6 +45,12 @@ const demoOrders = (): WorkOrder[] => {
 };
 const saveDemo = (orders: WorkOrder[]) => localStorage.setItem(DEMO_KEY, JSON.stringify(orders));
 const riskFor = (score: number): WorkOrder['risk_level'] => score >= 75 ? 'high' : score >= 50 ? 'medium' : 'low';
+const withTimeout = async <T,>(promise: PromiseLike<T>, ms = 7000): Promise<T> => {
+  return await Promise.race([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Backend request timed out; continuing in demo-safe mode.')), ms)),
+  ]);
+};
 
 export async function fetchWorkOrders(): Promise<WorkOrder[]> {
   if (isSupabaseConfigured && supabase) {
@@ -77,8 +83,11 @@ export async function upsertUploadedWorkOrders(rows: Array<Partial<WorkOrder>>):
 
 export async function recordAuditAction(workId: string | null, action: string, justification: string, actor = 'DEMO_AUDITOR'): Promise<boolean> {
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from('kavach_audit_trail').insert({ work_id: workId, actor, action_executed: action, justification_log: justification });
-    if (!error) return true;
+    try {
+      const { error } = await withTimeout(supabase.from('kavach_audit_trail').insert({ work_id: workId, actor, action_executed: action, justification_log: justification }), 5000);
+      if (!error) return true;
+      console.error('Audit trail write failed:', error);
+    } catch (err) { console.error('Audit trail write failed:', err); }
   }
   const key = 'kavach-demo-audit-trail-v1'; const existing = JSON.parse(localStorage.getItem(key) || '[]') as AuditTrailEntry[];
   existing.unshift({ audit_id: crypto.randomUUID(), work_id: workId, actor, action_executed: action, justification_log: justification, created_at: new Date().toISOString() });
@@ -87,23 +96,30 @@ export async function recordAuditAction(workId: string | null, action: string, j
 
 export async function fetchAuditTrail(workId?: string): Promise<AuditTrailEntry[]> {
   if (isSupabaseConfigured && supabase) {
-    let query = supabase.from('kavach_audit_trail').select('*').order('created_at', { ascending: false }).limit(50);
-    if (workId) query = query.eq('work_id', workId);
-    const { data, error } = await query; if (!error) return (data ?? []) as AuditTrailEntry[];
+    try {
+      let query = supabase.from('kavach_audit_trail').select('*').order('created_at', { ascending: false }).limit(50);
+      if (workId) query = query.eq('work_id', workId);
+      const { data, error } = await withTimeout(query, 5000); if (!error) return (data ?? []) as AuditTrailEntry[];
+    } catch { /* local fallback */ }
   }
   const existing = JSON.parse(localStorage.getItem('kavach-demo-audit-trail-v1') || '[]') as AuditTrailEntry[];
   return workId ? existing.filter((e) => e.work_id === workId) : existing;
 }
 
 export async function updateWorkOrderStatus(workId: string, status: 'frozen' | 'under_review' | 'cleared', action: string, justification: string): Promise<void> {
-  if (isSupabaseConfigured && supabase) {
-    const updates = { status, funds_frozen: status === 'frozen' ? undefined : 0 };
-    const { error } = await supabase.from('work_orders').update(updates).eq('work_id', workId);
-    if (!error) { await recordAuditAction(workId, action, justification); return; }
-  }
+  // Update the local demo state FIRST so every action works immediately, even when Supabase/RLS/schema is unavailable.
   const orders = demoOrders(); const order = orders.find((o) => o.work_id === workId);
   if (order) { order.status = status; order.funds_frozen = status === 'frozen' ? order.budget : 0; saveDemo(orders); }
-  await recordAuditAction(workId, action, justification);
+
+  let persisted = false;
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const updates = { status, funds_frozen: status === 'frozen' ? (order?.budget ?? 0) : 0 };
+      const { error } = await withTimeout(supabase.from('work_orders').update(updates).eq('work_id', workId), 5000);
+      if (!error) persisted = true; else console.error('Work order status update failed:', error);
+    } catch (err) { console.error('Work order status update failed:', err); }
+  }
+  await recordAuditAction(workId, action, `${justification}${persisted ? '' : ' (Demo-safe local state retained; backend persistence unavailable.)'}`);
 }
 
 export async function fetchCollusionNetwork(): Promise<CollusionNetwork> {
@@ -143,7 +159,11 @@ export async function updateVisionForensicsResults(workId: string, results: Part
 export async function triggerAIPipeline(workId: string, mode: 'freeze' | 'vision' = 'freeze'): Promise<AIPipelineResponse> {
   if (isSupabaseConfigured && supabase) {
     const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-    try { const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/audit-pipeline`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${key}` }, body: JSON.stringify({ work_id: workId, mode }) }); const data = await response.json().catch(() => ({})); if (response.ok && data.success) return data as AIPipelineResponse; } catch { /* local demo fallback */ }
+    try {
+      const response = await withTimeout(fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/audit-pipeline`, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${key}` }, body: JSON.stringify({ work_id: workId, mode }) }), 8000);
+      const data = await response.json().catch(() => ({})); if (response.ok && data.success) return data as AIPipelineResponse;
+      console.error('AI pipeline failed:', response.status, data);
+    } catch (err) { console.error('AI pipeline unavailable:', err); }
   }
   const orders = demoOrders(); const order = orders.find((o) => o.work_id === workId); if (!order) throw new Error(`Work order ${workId} not found`); await new Promise((resolve) => setTimeout(resolve, 650));
   if (mode === 'vision') {
