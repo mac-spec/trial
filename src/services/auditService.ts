@@ -71,6 +71,223 @@ const EDGE_FUNCTION_URL =
   'https://mfxfyaoygvbsslvfrpxr.supabase.co/functions/v1/audit-pipeline';
 
 // ---------------------------------------------------------------------------
+// Live-schema row types (columns as they actually exist in Supabase)
+// ---------------------------------------------------------------------------
+
+interface WorkOrderRow {
+  work_id: string;
+  ward_id: string | null;
+  title: string | null;
+  implementing_agency: string | null;
+  contractor_name: string | null;
+  total_budget: number | string | null;
+  risk_score: number | string | null;
+  status: string | null;
+  created_at: string;
+}
+
+interface GraphNodeRow {
+  id: string;
+  label: string | null;
+  type: string | null;
+  created_at: string;
+}
+
+interface GraphEdgeRow {
+  id: string;
+  source_id: string;
+  target_id: string;
+  relationship_type: string | null;
+  is_suspicious: boolean | null;
+  created_at: string;
+}
+
+interface VisionForensicsRow {
+  work_id: string;
+  contractor_photo_url: string | null;
+  baseline_photo_url: string | null;
+  extracted_latitude: number | string | null;
+  extracted_longitude: number | string | null;
+  gps_verification_status: string | null;
+  shadow_geometry_match_score: number | string | null;
+  duplicate_detected: boolean | null;
+}
+
+// ---------------------------------------------------------------------------
+// Mappers: live rows -> UI interfaces
+// ---------------------------------------------------------------------------
+
+function riskLevelFromScore(score: number): WorkOrder['risk_level'] {
+  if (score >= 70) return 'high';
+  if (score >= 40) return 'medium';
+  return 'low';
+}
+
+function mapStatus(raw: string | null): WorkOrder['status'] {
+  switch ((raw ?? '').toUpperCase()) {
+    case 'FLAGGED':
+      return 'flagged';
+    case 'FROZEN':
+    case 'FUNDS_FROZEN':
+      return 'frozen';
+    case 'CLEARED':
+    case 'APPROVED':
+      return 'cleared';
+    // PENDING_AUDIT, UNDER_REVIEW, and anything else awaiting action:
+    default:
+      return 'under_review';
+  }
+}
+
+function prettifyWard(wardId: string | null): string {
+  if (!wardId) return 'Unassigned Ward';
+  // "WARD_142" -> "Ward 142"
+  const cleaned = wardId.replace(/_/g, ' ').toLowerCase();
+  return cleaned.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** No category column exists in the DB, so derive a readable one from the title. */
+function deriveCategory(title: string | null): string {
+  const t = (title ?? '').toLowerCase();
+  if (/drain|desilt|sewer|storm/.test(t)) return 'Drainage & Sanitation';
+  if (/road|asphalt|tar|pavement/.test(t)) return 'Roads & Transport';
+  if (/wall|retaining|bridge|culvert|concrete/.test(t)) return 'Civil Structures';
+  if (/water|pipe|borewell|supply/.test(t)) return 'Water Supply';
+  if (/light|electric|solar|transformer/.test(t)) return 'Electrical Works';
+  if (/park|garden|play|landscap/.test(t)) return 'Parks & Recreation';
+  return 'General Civil Works';
+}
+
+function mapWorkOrder(row: WorkOrderRow): WorkOrder {
+  const risk = Number(row.risk_score ?? 0);
+  const budget = Number(row.total_budget ?? 0);
+  const status = mapStatus(row.status);
+  return {
+    id: row.work_id,
+    work_id: row.work_id,
+    title: row.title ?? 'Untitled Work Order',
+    ward_name: prettifyWard(row.ward_id),
+    contractor: row.contractor_name ?? 'Unknown Contractor',
+    agency: row.implementing_agency ?? 'N/A',
+    work_category: deriveCategory(row.title),
+    budget,
+    risk_score: Math.round(risk),
+    risk_level: riskLevelFromScore(risk),
+    status,
+    funds_frozen: status === 'frozen' ? budget : 0,
+    date: row.created_at ? row.created_at.slice(0, 10) : '',
+    created_at: row.created_at,
+  };
+}
+
+function mapNodeType(raw: string | null): GraphNode['type'] {
+  const t = (raw ?? '').toLowerCase();
+  if (t.includes('bank')) return 'bank';
+  if (t.includes('sub')) return 'subcontractor';
+  if (t.includes('contract')) return 'contractor';
+  return 'mp';
+}
+
+function prettifyRelationship(raw: string | null): string {
+  return (raw ?? 'linked').replace(/_/g, ' ').toLowerCase();
+}
+
+/**
+ * Live graph tables store no coordinates or per-node risk. We synthesize a
+ * tidy tiered layout (MP -> contractor -> subcontractor -> bank) and infer
+ * node risk from how many suspicious edges touch it, so the SVG renders.
+ */
+function buildCollusionNetwork(
+  nodeRows: GraphNodeRow[],
+  edgeRows: GraphEdgeRow[]
+): CollusionNetwork {
+  const edges: GraphEdge[] = edgeRows.map((e) => ({
+    id: e.id,
+    from_node: e.source_id,
+    to_node: e.target_id,
+    label: prettifyRelationship(e.relationship_type),
+    is_suspicious: !!e.is_suspicious,
+  }));
+
+  // Count suspicious links per node to derive a risk score.
+  const suspiciousCount = new Map<string, number>();
+  for (const e of edgeRows) {
+    if (e.is_suspicious) {
+      suspiciousCount.set(e.source_id, (suspiciousCount.get(e.source_id) ?? 0) + 1);
+      suspiciousCount.set(e.target_id, (suspiciousCount.get(e.target_id) ?? 0) + 1);
+    }
+  }
+
+  const tierOrder: GraphNode['type'][] = ['mp', 'contractor', 'subcontractor', 'bank'];
+  const tierY: Record<GraphNode['type'], number> = {
+    mp: 70,
+    contractor: 190,
+    subcontractor: 330,
+    bank: 460,
+  };
+
+  // Group nodes by tier to spread them horizontally within their row.
+  const byTier = new Map<GraphNode['type'], GraphNodeRow[]>();
+  for (const n of nodeRows) {
+    const type = mapNodeType(n.type);
+    const list = byTier.get(type) ?? [];
+    list.push(n);
+    byTier.set(type, list);
+  }
+
+  const WIDTH = 720;
+  const nodes: GraphNode[] = [];
+  for (const type of tierOrder) {
+    const list = byTier.get(type) ?? [];
+    list.forEach((n, i) => {
+      const step = WIDTH / (list.length + 1);
+      const susp = suspiciousCount.get(n.id) ?? 0;
+      const risk = susp >= 2 ? 90 : susp === 1 ? 78 : 45;
+      nodes.push({
+        id: n.id,
+        label: n.label ?? n.id,
+        type,
+        x: Math.round(step * (i + 1)),
+        y: tierY[type],
+        risk_score: risk,
+      });
+    });
+  }
+
+  return { nodes, edges };
+}
+
+function formatCoord(lat: number | null, lng: number | null): string {
+  if (lat == null || lng == null) return 'Coordinates unavailable';
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lng >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(4)}° ${ns}, ${Math.abs(lng).toFixed(4)}° ${ew}`;
+}
+
+function mapVisionForensics(row: VisionForensicsRow): VisionForensics {
+  const status = (row.gps_verification_status ?? '').toUpperCase();
+  const gpsVerified = status === 'VERIFIED' || status === 'MATCHED';
+  const now = new Date().toISOString();
+  return {
+    id: `vf-${row.work_id}`,
+    work_id: row.work_id,
+    contractor_photo_url: row.contractor_photo_url,
+    gps_coordinates: formatCoord(
+      row.extracted_latitude == null ? null : Number(row.extracted_latitude),
+      row.extracted_longitude == null ? null : Number(row.extracted_longitude)
+    ),
+    gps_verified: gpsVerified,
+    // No timestamp column in the live schema; treat GPS-verified rows as timestamp-trusted.
+    timestamp_verified: gpsVerified,
+    shadow_geometry_score: Number(row.shadow_geometry_match_score ?? 0),
+    duplicate_detected: !!row.duplicate_detected,
+    ai_status: row.contractor_photo_url ? 'analyzed' : 'awaiting_upload',
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Demo fallback data (used when Supabase is not configured)
 // ---------------------------------------------------------------------------
 
@@ -140,7 +357,9 @@ export async function fetchWorkOrders(): Promise<WorkOrder[]> {
     throw new Error(`Failed to fetch work orders: ${error.message}`);
   }
 
-  return (data ?? []) as WorkOrder[];
+  // Map the live column names/shape into the UI's WorkOrder interface so the
+  // executive overview KPIs and the critical-alerts table populate correctly.
+  return ((data ?? []) as WorkOrderRow[]).map(mapWorkOrder);
 }
 
 export async function fetchCollusionNetwork(): Promise<CollusionNetwork> {
@@ -156,10 +375,10 @@ export async function fetchCollusionNetwork(): Promise<CollusionNetwork> {
   if (nodesRes.error) throw new Error(`Failed to fetch nodes: ${nodesRes.error.message}`);
   if (edgesRes.error) throw new Error(`Failed to fetch edges: ${edgesRes.error.message}`);
 
-  return {
-    nodes: (nodesRes.data ?? []) as GraphNode[],
-    edges: (edgesRes.data ?? []) as GraphEdge[],
-  };
+  return buildCollusionNetwork(
+    (nodesRes.data ?? []) as GraphNodeRow[],
+    (edgesRes.data ?? []) as GraphEdgeRow[]
+  );
 }
 
 export async function fetchVisionForensics(workId: string): Promise<VisionForensics | null> {
@@ -173,7 +392,7 @@ export async function fetchVisionForensics(workId: string): Promise<VisionForens
     .eq('work_id', workId)
     .maybeSingle();
   if (error) throw new Error(`Failed to fetch vision forensics: ${error.message}`);
-  return data as VisionForensics | null;
+  return data ? mapVisionForensics(data as VisionForensicsRow) : null;
 }
 
 export async function uploadMilestonePhoto(
@@ -210,9 +429,10 @@ export async function uploadMilestonePhoto(
 
   const publicUrl = urlData.publicUrl;
 
+  // Only touch columns that exist in the live vision_forensics schema.
   const { error: updateError } = await supabase
     .from('vision_forensics')
-    .update({ contractor_photo_url: publicUrl, ai_status: 'analyzing', updated_at: new Date().toISOString() })
+    .update({ contractor_photo_url: publicUrl })
     .eq('work_id', workId);
 
   if (updateError) {
@@ -236,9 +456,20 @@ export async function updateVisionForensicsResults(
     return;
   }
 
+  // Translate UI-shaped fields back onto the live column names.
+  const payload: Record<string, unknown> = {};
+  if (results.shadow_geometry_score !== undefined)
+    payload.shadow_geometry_match_score = results.shadow_geometry_score;
+  if (results.duplicate_detected !== undefined)
+    payload.duplicate_detected = results.duplicate_detected;
+  if (results.gps_verified !== undefined)
+    payload.gps_verification_status = results.gps_verified ? 'VERIFIED' : 'MISMATCHED_BOUNDARIES';
+
+  if (Object.keys(payload).length === 0) return;
+
   const { error } = await supabase
     .from('vision_forensics')
-    .update({ ...results, updated_at: new Date().toISOString() })
+    .update(payload)
     .eq('work_id', workId);
   if (error) throw new Error(`Failed to update vision results: ${error.message}`);
 }

@@ -20,8 +20,13 @@ function isUsableUrl(url: string | undefined): url is string {
 }
 
 function isUsableKey(key: string | undefined): key is string {
-  // A real anon key is a JWT (three dot-separated segments). Reject placeholders.
-  return !!key && key.split('.').length === 3;
+  if (!key) return false;
+  // Newer Supabase publishable/secret keys: "sb_publishable_..." / "sb_secret_...".
+  if (key.startsWith('sb_publishable_') || key.startsWith('sb_secret_')) {
+    return key.length > 20;
+  }
+  // Legacy anon key is a JWT (three dot-separated segments). Reject placeholders.
+  return key.split('.').length === 3;
 }
 
 export const isSupabaseConfigured =
