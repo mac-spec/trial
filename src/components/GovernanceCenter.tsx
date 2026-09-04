@@ -3,43 +3,21 @@ import { Building2, Landmark, ShieldCheck, Users, BrainCircuit, AlertTriangle, T
 import { LiveAuditLab } from './LiveAuditLab';
 import { fetchWorkOrders, type WorkOrder } from '@/services/auditService';
 import { formatCurrency } from '@/lib/mockData';
-
+import { IntelligenceCoverage } from './IntelligenceCoverage';
 type Role = 'MP' | 'District Authority' | 'State Nodal Authority' | 'Ministry';
-const roles: { name: Role; icon: typeof Landmark; desc: string; decisions: string[] }[] = [
-  { name: 'MP', icon: Users, desc: 'Constituency allocation and work-level oversight', decisions: ['Portfolio health', 'High-risk works', 'Fund utilisation'] },
-  { name: 'District Authority', icon: Building2, desc: 'Execution, sanction, payment and physical verification', decisions: ['Stalled works', 'Payment exceptions', 'Field audits'] },
-  { name: 'State Nodal Authority', icon: ShieldCheck, desc: 'Cross-district compliance and escalation', decisions: ['Peer outliers', 'Agency patterns', 'Escalations'] },
-  { name: 'Ministry', icon: Landmark, desc: 'Portfolio-wide risk and early-warning intelligence', decisions: ['National trends', 'Risk concentration', 'Policy signals'] },
+const roles: { name: Role; icon: typeof Landmark; desc: string }[] = [
+ { name:'MP',icon:Users,desc:'Constituency allocation and work-level oversight' },{ name:'District Authority',icon:Building2,desc:'Execution, sanction, payment and physical verification' },{ name:'State Nodal Authority',icon:ShieldCheck,desc:'Cross-district compliance and escalation' },{ name:'Ministry',icon:Landmark,desc:'Portfolio-wide risk and early-warning intelligence' }
 ];
-
-export function GovernanceCenter() {
-  const [role, setRole] = useState<Role>('Ministry');
-  const [orders, setOrders] = useState<WorkOrder[]>([]);
-  const RoleIcon = roles.find(r => r.name === role)?.icon ?? Landmark;
-  useEffect(() => { void fetchWorkOrders().then(setOrders); }, []);
-  const stats = useMemo(() => {
-    const delayed = orders.filter(w => Number(w.physical_progress_percentage ?? 0) < Number(w.expected_progress_percentage ?? 0) - 20).length;
-    const divergence = orders.filter(w => Number(w.total_payments_released ?? 0) > Number(w.total_expenditure ?? 0) && Number(w.total_payments_released ?? 0) > 0).length;
-    const high = orders.filter(w => w.risk_level === 'high').length;
-    return { high, delayed, divergence, total: orders.length, funds: orders.reduce((s,w)=>s+Number(w.budget||0),0) };
-  }, [orders]);
-
-  return <div className="space-y-5">
-    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-        <div><div className="flex items-center gap-2 text-amber-400 text-xs uppercase tracking-widest"><Landmark className="w-4 h-4" /> Governance Intelligence Center</div><h2 className="text-xl font-bold text-white mt-2">From anomaly to accountable decision</h2><p className="text-xs text-slate-500 mt-1 max-w-2xl">This is the decision layer of DRISHTI: the same evidence is translated into role-specific actions for MPs, District Authorities, State Nodal Authorities and MoSPI. It is not another analytics dashboard.</p></div>
-        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 shrink-0"><RoleIcon className="w-4 h-4 text-amber-400" /> Active demo role: <span className="text-slate-200 font-semibold">{role}</span></div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-5">{roles.map(r => { const Icon = r.icon; const active = role === r.name; return <button key={r.name} onClick={() => setRole(r.name)} className={`text-left rounded-lg border p-3 transition ${active ? 'border-amber-500/40 bg-amber-500/10' : 'border-slate-800 bg-slate-950 hover:bg-slate-800/60'}`}><Icon className={`w-4 h-4 ${active ? 'text-amber-400' : 'text-slate-500'}`} /><p className="text-xs font-semibold text-slate-200 mt-2">{r.name}</p><p className="text-[10px] leading-4 text-slate-600 mt-1">{r.desc}</p></button>; })}</div>
-    </div>
-
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[
-      ['High-risk works', stats.high, AlertTriangle], ['Progress exceptions', stats.delayed, TrendingUp], ['Payment divergence', stats.divergence, ClipboardCheck], ['Tracked portfolio', formatCurrency(stats.funds), BrainCircuit]
-    ].map(([label,value,Icon]) => <div key={String(label)} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><Icon className="w-4 h-4 text-amber-400"/><p className="text-[10px] uppercase tracking-wider text-slate-500 mt-3">{label}</p><p className="text-lg font-bold text-white mt-1">{value}</p></div>)}</div>
-
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5"><div className="flex items-center gap-2 mb-4"><BrainCircuit className="w-5 h-5 text-amber-400"/><div><h3 className="text-sm font-semibold text-white">Governance decision pipeline</h3><p className="text-[10px] text-slate-500">How DRISHTI turns data into an auditable intervention</p></div></div><div className="grid grid-cols-1 md:grid-cols-5 gap-2">{['Ingest','Detect','Explain','Prioritise','Act'].map((step,i)=><div key={step} className="flex md:block items-center gap-3 rounded-lg bg-slate-950 border border-slate-800 p-3"><div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold">{i+1}</div><div className="mt-0 md:mt-2"><p className="text-xs font-semibold text-slate-200">{step}</p><p className="text-[10px] text-slate-600">{['Works + finance','Anomaly + rules','Evidence trail','Risk queue','Audit / hold'][i]}</p></div>{i<4&&<ArrowRight className="hidden md:block w-3 h-3 text-slate-700 mx-auto mt-2"/>}</div>)}</div></div>
-
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500">Official allocation layer</p><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2"><div><p className="text-sm font-semibold text-white">Bengaluru listed-MP allocation baseline</p><p className="text-[10px] text-slate-500">Uses the supplied MPLADS allocation extract; project-level audit metrics are separate and demo-labelled when synthetic.</p></div><p className="text-xl font-bold text-amber-400">₹60.10 Cr</p></div></div>
-    <LiveAuditLab />
-  </div>;
+export function GovernanceCenter(){
+ const [role,setRole]=useState<Role>('Ministry'); const [orders,setOrders]=useState<WorkOrder[]>([]); const RoleIcon=roles.find(r=>r.name===role)?.icon??Landmark;
+ useEffect(()=>{void fetchWorkOrders().then(setOrders)},[]);
+ const stats=useMemo(()=>{const delayed=orders.filter(w=>Number(w.physical_progress_percentage??0)<Number(w.expected_progress_percentage??0)-20).length;const divergence=orders.filter(w=>Number(w.total_payments_released??0)>Number(w.total_expenditure??0)&&Number(w.total_payments_released??0)>0).length;const high=orders.filter(w=>w.risk_level==='high').length;return{high,delayed,divergence,funds:orders.reduce((s,w)=>s+Number(w.budget||0),0)}},[orders]);
+ return <div className="space-y-5">
+  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:p-5"><div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4"><div><div className="flex items-center gap-2 text-amber-400 text-xs uppercase tracking-widest"><Landmark className="w-4 h-4"/>Governance Intelligence Center</div><h2 className="text-xl font-bold text-white mt-2">From anomaly to accountable decision</h2><p className="text-xs text-slate-500 mt-1 max-w-2xl">The governance layer converts DRISHTI risk evidence into role-specific decisions for MPs, District Authorities, State Nodal Authorities and MoSPI.</p></div><div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 shrink-0"><RoleIcon className="w-4 h-4 text-amber-400"/>Active role: <span className="text-slate-200 font-semibold">{role}</span></div></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mt-5">{roles.map(r=>{const Icon=r.icon;const active=role===r.name;return <button key={r.name} onClick={()=>setRole(r.name)} className={`text-left rounded-lg border p-3 transition ${active?'border-amber-500/40 bg-amber-500/10':'border-slate-800 bg-slate-950 hover:bg-slate-800/60'}`}><Icon className={`w-4 h-4 ${active?'text-amber-400':'text-slate-500'}`}/><p className="text-xs font-semibold text-slate-200 mt-2">{r.name}</p><p className="text-[10px] leading-4 text-slate-600 mt-1">{r.desc}</p></button>})}</div></div>
+  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{[['High-risk works',stats.high,AlertTriangle],['Progress exceptions',stats.delayed,TrendingUp],['Payment divergence',stats.divergence,ClipboardCheck],['Tracked portfolio',formatCurrency(stats.funds),BrainCircuit]].map(([label,value,Icon])=><div key={String(label)} className="rounded-xl border border-slate-800 bg-slate-900 p-4"><Icon className="w-4 h-4 text-amber-400"/><p className="text-[10px] uppercase tracking-wider text-slate-500 mt-3">{label}</p><p className="text-lg font-bold text-white mt-1">{value}</p></div>)}</div>
+  <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5"><div className="flex items-center gap-2 mb-4"><BrainCircuit className="w-5 h-5 text-amber-400"/><div><h3 className="text-sm font-semibold text-white">Governance decision pipeline</h3><p className="text-[10px] text-slate-500">DATA → RISK → EXPLANATION → PRIORITY → ACTION → AUDIT TRAIL</p></div></div><div className="grid grid-cols-1 md:grid-cols-5 gap-2">{['Ingest','Detect','Explain','Prioritise','Act'].map((step,i)=><div key={step} className="flex md:block items-center gap-3 rounded-lg bg-slate-950 border border-slate-800 p-3"><div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold">{i+1}</div><div className="mt-0 md:mt-2"><p className="text-xs font-semibold text-slate-200">{step}</p><p className="text-[10px] text-slate-600">{['Works + finance','Anomaly + rules','Evidence trail','Risk queue','Audit / hold'][i]}</p></div>{i<4&&<ArrowRight className="hidden md:block w-3 h-3 text-slate-700 mx-auto mt-2"/>}</div>)}</div></div>
+  <IntelligenceCoverage/>
+  <div className="rounded-xl border border-slate-800 bg-slate-900 p-4"><p className="text-[10px] uppercase tracking-widest text-slate-500">Official allocation layer</p><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2"><div><p className="text-sm font-semibold text-white">Bengaluru listed-MP allocation baseline</p><p className="text-[10px] text-slate-500">Uses the supplied MPLADS allocation extract; project-level audit metrics remain separate and demo-labelled when synthetic.</p></div><p className="text-xl font-bold text-amber-400">₹60.10 Cr</p></div></div>
+  <LiveAuditLab/>
+ </div>;
 }
