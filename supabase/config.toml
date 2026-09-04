@@ -1,0 +1,2 @@
+[functions.audit-pipeline]
+verify_jwt = false
