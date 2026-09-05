@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ShieldCheck, LayoutDashboard, Map, FileSearch, AlertTriangle, Landmark, UserRound, PanelLeftClose, PanelLeftOpen, Menu, X, Box } from 'lucide-react';
+import { ShieldCheck, LayoutDashboard, Map, FileSearch, AlertTriangle, Landmark, UserRound, PanelLeftClose, PanelLeftOpen, Menu, X, Box, MessageCircle } from 'lucide-react';
 
-export type View = 'overview' | 'digitaltwin' | 'map' | 'deepdive' | 'governance';
+export type View = 'overview' | 'digitaltwin' | 'map' | 'deepdive' | 'governance' | 'fieldintel';
 interface SidebarProps { activeView: View; onNavigate: (view: View) => void; alertCount: number; onProfile: ()=>void; user: {name:string; role:string}; }
 const navItems: { id: View; label: string; icon: typeof ShieldCheck; desc: string }[] = [
   { id: 'overview', label: 'Executive Overview', icon: LayoutDashboard, desc: 'Live KPIs & audit queue' },
@@ -9,6 +9,7 @@ const navItems: { id: View; label: string; icon: typeof ShieldCheck; desc: strin
   { id: 'governance', label: 'Governance Intelligence', icon: Landmark, desc: 'Roles, compliance & decisions' },
   { id: 'map', label: 'Ward Risk Map', icon: Map, desc: 'Geospatial risk view' },
   { id: 'deepdive', label: 'Fraud Detection Deep-Dive', icon: FileSearch, desc: 'Evidence & investigations' },
+  { id: 'fieldintel', label: 'Field Intelligence Hub', icon: MessageCircle, desc: 'Chat · map · satellite roadmap' },
 ];
 
 export function Sidebar({ activeView, onNavigate, alertCount, onProfile, user }: SidebarProps) {
