@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { ShieldCheck, LayoutDashboard, Map, FileSearch, AlertTriangle, Landmark, UserRound, PanelLeftClose, PanelLeftOpen, Menu, X, Box, MessageCircle, Gauge } from 'lucide-react';
 
-export type View = 'overview' | 'digitaltwin' | 'commandcenter' | 'map' | 'deepdive' | 'governance' | 'fieldintel';
+export type View = 'overview' | 'digitaltwin' | 'map' | 'deepdive' | 'governance' | 'fieldintel';
 interface SidebarProps { activeView: View; onNavigate: (view: View) => void; alertCount: number; onProfile: ()=>void; user: {name:string; role:string}; }
 const navItems: { id: View; label: string; icon: typeof ShieldCheck; desc: string }[] = [
   { id: 'overview', label: 'Executive Overview', icon: LayoutDashboard, desc: 'Live KPIs & audit queue' },
   { id: 'digitaltwin', label: 'Digital Twin', icon: Box, desc: 'Live project state & risk' },
-  { id: 'commandcenter', label: 'AI Audit Command Centre', icon: Gauge, desc: 'End-to-end audit pipeline' },
-  { id: 'governance', label: 'Governance Intelligence', icon: Landmark, desc: 'Roles, compliance & decisions' },
+  { id: 'governance', label: 'AI Audit Command Centre', icon: Gauge, desc: 'End-to-end audit pipeline' },
   { id: 'map', label: 'Ward Risk Map', icon: Map, desc: 'Geospatial risk view' },
   { id: 'deepdive', label: 'Fraud Detection Deep-Dive', icon: FileSearch, desc: 'Evidence & investigations' },
   { id: 'fieldintel', label: 'Field Intelligence Hub', icon: MessageCircle, desc: 'Chat · map · satellite' },
