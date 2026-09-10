@@ -32,7 +32,10 @@ export function isolationForestScore(features: RiskFeatures) {
   const paths=(isolationForestModel.trees as readonly ForestTree[]).map(t=>pathLength(t,x));
   const mean=paths.reduce((a,b)=>a+b,0)/paths.length;
   const raw=Math.pow(2,-mean/c(isolationForestModel.max_samples));
-  const decision=raw + isolationForestModel.offset;
+  // sklearn IsolationForest score_samples is the negative of the normalized path score.
+  // decision_function = score_samples - offset; lower/negative means more anomalous.
+  const scoreSamples=-raw;
+  const decision=scoreSamples-isolationForestModel.offset;
   const anomaly=clamp(raw*100,0,100);
   return { anomalyScore: Number(anomaly.toFixed(1)), decision, outlier: decision < 0, meanPathLength: Number(mean.toFixed(2)) };
 }
