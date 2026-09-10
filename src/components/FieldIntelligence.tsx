@@ -27,6 +27,7 @@ const timeline: Record<WindowKey, EvidenceFrame[]> = {
 };
 
 const labels: Record<WindowKey, string> = { '6d': 'Last 6 days', '12d': 'Last 12 days', weekly: 'Weekly view' };
+const copernicusBrowserUrl = 'https://browser.dataspace.copernicus.eu/?lat=12.9716&lng=77.5946&zoom=12&cloudCoverage=20&datasetId=S2_L2A_CDAS';
 
 export function FieldIntelligence({ workOrders }: { workOrders: WorkOrder[] }) {
   const records = Array.isArray(workOrders) ? workOrders : [];
@@ -44,10 +45,10 @@ export function FieldIntelligence({ workOrders }: { workOrders: WorkOrder[] }) {
   const answer = (q: string) => {
     const x = q.toLowerCase();
     if (x.includes('risk')) return active ? `${active.work_id}: DRISHTI risk signal is ${Math.round(Number(active.risk_score || 0))}/100. This prioritises audit attention; it is not proof of fraud.` : 'No monitored project record is loaded yet.';
-    if (x.includes('satellite') || x.includes('bhoonidhi')) return 'Evidence path: work GPS/AOI → authorised BHOONIDHI search → dated imagery → temporal change analysis → physical-progress cross-check. Live government credentials are not claimed in this prototype.';
+    if (x.includes('satellite') || x.includes('bhoonidhi') || x.includes('copernicus')) return 'Satellite evidence path: work location/AOI → Sentinel-2 or authorised BHOONIDHI search → cloud filtering → dated imagery → temporal change analysis → physical-progress cross-check. Live government credentials are not claimed in this prototype.';
     if (x.includes('progress') || x.includes('timeline')) return `${labels[windowKey]} moves from ${frames[0].progress}% to ${frames[frames.length - 1].progress}% in this controlled demonstration timeline.`;
     if (x.includes('data') || x.includes('csv')) return 'The supplied official extract contains State, MP, Constituency and allocated amount. Project-level audit fields are demonstrated with controlled testing records rather than fabricated eSAKSHI records.';
-    return 'Try: Why is this work high risk? · Show progress timeline · How will satellite evidence help? · What data do we have?';
+    return 'Try: Why is this work high risk? · Show progress timeline · How will satellite evidence help? · Open Copernicus Browser';
   };
 
   const submit = () => { const q = query.trim(); if (!q) return; setMessages((m) => [...m, `You: ${q}`, `DRISHTI: ${answer(q)}`]); setQuery(''); };
@@ -57,7 +58,7 @@ export function FieldIntelligence({ workOrders }: { workOrders: WorkOrder[] }) {
       <section className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/20 p-4 sm:p-6 shadow-2xl shadow-black/20">
         <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-amber-400" /><h2 className="text-lg font-bold text-white">{kn ? 'ಕ್ಷೇತ್ರ ಗುಪ್ತಚರ ಕೇಂದ್ರ' : 'Field Intelligence Hub'}</h2><span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[9px] uppercase tracking-wider text-amber-300">DEMO</span></div><p className="mt-1 max-w-3xl text-xs text-slate-400">Audit Copilot + Google Maps-style project map + dated evidence timeline + BHOONIDHI integration path.</p></div>
+          <div><div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-amber-400" /><h2 className="text-lg font-bold text-white">{kn ? 'ಕ್ಷೇತ್ರ ಗುಪ್ತಚರ ಕೇಂದ್ರ' : 'Field Intelligence Hub'}</h2><span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[9px] uppercase tracking-wider text-amber-300">DEMO</span></div><p className="mt-1 max-w-3xl text-xs text-slate-400">Audit Copilot + Google Maps-style project map + Copernicus satellite browser + dated evidence timeline.</p></div>
           <button type="button" onClick={() => setKn((v) => !v)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-xs text-slate-300 hover:border-emerald-500/40 hover:text-white"><Languages className="h-4 w-4" />{kn ? 'English' : 'ಕನ್ನಡ'}</button>
         </div>
       </section>
@@ -80,6 +81,20 @@ export function FieldIntelligence({ workOrders }: { workOrders: WorkOrder[] }) {
           </div>
         </section>
       </div>
+
+      <section className="rounded-2xl border border-sky-500/20 bg-gradient-to-br from-slate-900 to-sky-950/20 p-4 shadow-xl sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl"><div className="flex items-center gap-2"><Globe2 className="h-5 w-5 text-sky-400" /><h3 className="text-sm font-semibold text-white">Copernicus Browser · Live Earth Observation</h3><span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[9px] uppercase tracking-wider text-sky-300">SENTINEL-2</span></div><p className="mt-2 text-xs leading-5 text-slate-400">Open the official cloud-based Copernicus Browser already centered on Bengaluru. From there, search Sentinel-2 scenes, set a date range, reduce cloud cover, and switch between True Color, False Color (Urban) and NDVI.</p></div>
+          <a href={copernicusBrowserUrl} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2.5 text-xs font-semibold text-slate-950 transition hover:bg-sky-400"><ExternalLink className="h-4 w-4" />Open Copernicus Browser</a>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"><p className="text-[9px] uppercase tracking-widest text-slate-500">1 · Find city</p><p className="mt-1 text-xs font-semibold text-white">Bengaluru, Karnataka</p><p className="mt-1 text-[10px] text-slate-500">Browser opens at the city view.</p></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"><p className="text-[9px] uppercase tracking-widest text-slate-500">2 · Filter</p><p className="mt-1 text-xs font-semibold text-white">Sentinel-2 · Cloud ≤ 20%</p><p className="mt-1 text-[10px] text-slate-500">Choose your date range in the Browser.</p></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"><p className="text-[9px] uppercase tracking-widest text-slate-500">3 · Visualize</p><p className="mt-1 text-xs font-semibold text-white">True Color · Urban · NDVI</p><p className="mt-1 text-[10px] text-slate-500">Compare built-up areas and vegetation.</p></div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3"><p className="text-[9px] uppercase tracking-widest text-slate-500">4 · Export</p><p className="mt-1 text-xs font-semibold text-white">Image / analytical output</p><p className="mt-1 text-[10px] text-slate-500">Use the Browser image-download tools for the selected view.</p></div>
+        </div>
+        <div className="mt-4 rounded-xl border border-sky-500/20 bg-sky-500/5 p-3 text-[10px] leading-5 text-slate-400"><span className="font-semibold text-sky-300">DRISHTI integration path:</span> project GPS/AOI → Copernicus/Sentinel-2 search → cloud-quality filter → selected visualization → exported/date-stamped evidence → compare with reported physical progress. This is a live public EO browser link; it is separate from the controlled BHOONIDHI/eSAKSHI integration boundary.</div>
+      </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2"><CalendarClock className="h-5 w-5 text-sky-400" /><h3 className="text-sm font-semibold text-white">BHOONIDHI Temporal Evidence Viewer</h3></div><p className="mt-1 text-[10px] text-slate-500">Move through dated evidence checkpoints for the selected road project.</p></div><div className="flex flex-wrap gap-2">{(Object.keys(labels) as WindowKey[]).map((key) => <button key={key} type="button" onClick={() => { setWindowKey(key); setFrameIndex(3); }} className={`rounded-lg border px-3 py-2 text-[10px] ${windowKey === key ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-slate-700 text-slate-400 hover:text-white'}`}>{labels[key]}</button>)}</div></div>
