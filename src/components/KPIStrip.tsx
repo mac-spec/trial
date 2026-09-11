@@ -12,12 +12,12 @@ export function KPIStrip({ totalFunds, anomalies, frozenFunds, savings }: KPIStr
   const roleMetric = role.id === 'mospi'
     ? { value: anomalies.toString(), title: 'Ministry Risk Queue', subtitle: 'Cross-jurisdiction cases requiring attention', icon: ShieldCheck, accent: 'red' as const }
     : role.id === 'state_nodal'
-      ? { value: `${Math.max(0, 100 - anomalies * 5)}%`, title: 'State Compliance Health', subtitle: 'Portfolio health indicator', icon: ShieldCheck, accent: 'emerald' as const }
+      ? { value: `${Math.max(0, 100 - anomalies * 5)}%`, title: 'State Compliance Health', subtitle: 'Portfolio indicator from current audit queue', icon: ShieldCheck, accent: 'emerald' as const }
       : role.id === 'district_authority'
-        ? { value: `${workCountForRole(totalFunds)}%`, title: 'District Execution Health', subtitle: 'Execution readiness indicator', icon: TrendingUp, accent: 'blue' as const }
+        ? { value: anomalies.toString(), title: 'District Priority Queue', subtitle: 'Risk cases for district review', icon: AlertTriangle, accent: 'blue' as const }
         : role.id === 'implementing_agency'
           ? { value: frozenFunds > 0 ? formatCurrency(frozenFunds) : '₹0', title: 'Assigned Funds On Hold', subtitle: 'Work requiring response or verification', icon: Snowflake, accent: 'amber' as const }
-          : { value: `${Math.max(0, 100 - anomalies * 5)}%`, title: 'Constituency Delivery Health', subtitle: 'Portfolio status visible to MP office', icon: TrendingUp, accent: 'emerald' as const };
+          : { value: anomalies.toString(), title: 'Constituency Risk Queue', subtitle: 'Portfolio cases visible to MP office', icon: AlertTriangle, accent: 'emerald' as const };
 
   return <>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -28,13 +28,8 @@ export function KPIStrip({ totalFunds, anomalies, frozenFunds, savings }: KPIStr
       <KPICard title={roleMetric.title} value={roleMetric.value} subtitle={`${role.shortLabel} · ${roleMetric.subtitle}`} icon={roleMetric.icon} accent={roleMetric.accent} />
     </div>
     <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/[.045] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div className="flex items-start gap-3"><div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0"><Users className="w-4 h-4 text-emerald-400" /></div><div><p className="text-xs font-semibold text-slate-200">Overall Governance Insight</p><p className="text-[10px] text-slate-500 mt-0.5">Shared portfolio signal visible across authorised roles; role-specific actions remain restricted to the signed-in workspace.</p></div></div>
+      <div className="flex items-start gap-3"><div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0"><Users className="w-4 h-4 text-emerald-400" /></div><div><p className="text-xs font-semibold text-slate-200">Overall Governance Insight</p><p className="text-[10px] text-slate-500 mt-0.5">Shared portfolio insight is visible to authorised roles; decision actions remain role-restricted.</p></div></div>
       <div className="flex items-center gap-4 text-[10px] text-slate-400"><span><b className="text-white">{anomalies}</b> priority cases</span><span><b className="text-white">{formatCurrency(frozenFunds)}</b> held</span><span><b className="text-white">{formatCurrency(totalFunds)}</b> monitored</span></div>
     </div>
   </>;
-}
-
-function workCountForRole(totalFunds: number) {
-  // Prototype-only execution-health proxy; replace with authorised district work records in production.
-  return Math.min(99, Math.max(1, Math.round((totalFunds % 1000000) / 10000)));
 }
