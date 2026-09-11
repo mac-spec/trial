@@ -1,7 +1,6 @@
 import { CheckCircle2, CircleDashed, Database, ExternalLink, FlaskConical, Info } from 'lucide-react';
 
 type Status = 'LIVE' | 'DEMO' | 'SYNTHETIC' | 'EXTERNAL INTEGRATION';
-
 type Item = { name: string; status: Status; detail: string };
 
 const statusMeta: Record<Status, { Icon: typeof CheckCircle2; className: string }> = {
@@ -12,20 +11,30 @@ const statusMeta: Record<Status, { Icon: typeof CheckCircle2; className: string 
 };
 
 const items: Item[] = [
-  { name: 'ML anomaly detection', status: 'LIVE', detail: 'Trained Isolation Forest inference + explainable governance rules.' },
-  { name: 'Expenditure / payment analysis', status: 'LIVE', detail: 'Financial divergence and utilization indicators when project fields exist.' },
-  { name: 'Cost overrun screening', status: 'LIVE', detail: 'Peer/statistical screening; production BoQ comparison requires authorised records.' },
-  { name: 'Progress / delay monitoring', status: 'LIVE', detail: 'Physical-versus-expected progress and delay indicators.' },
-  { name: 'Duplicate-work screening', status: 'LIVE', detail: 'Description similarity signal and duplicate alert workflow.' },
-  { name: 'Risk alerts + human action', status: 'LIVE', detail: 'Risk levels, investigation queue, review/freeze actions and audit trail.' },
-  { name: 'Compliance monitoring', status: 'LIVE', detail: 'Rule-based compliance matrix and traceable decision records.' },
-  { name: 'Trend / early-warning view', status: 'DEMO', detail: 'Risk trajectory UI is demonstrated; trained forecasting needs historical calibration.' },
-  { name: 'Asset / photo / GPS forensics', status: 'DEMO', detail: 'Evidence workflow and forensic fields are present; computer vision is not claimed as production CV.' },
+  { name: 'Sanction / approval monitoring', status: 'LIVE', detail: 'Schema supports sanctioned/budget fields and the audit workflow can ingest authorised work records.' },
+  { name: 'Expenditure / fund utilization', status: 'LIVE', detail: 'Financial utilization, expenditure and payment-divergence indicators when project fields exist.' },
+  { name: 'Cost estimates / cost overruns', status: 'LIVE', detail: 'Cost screening is implemented; production BoQ comparison requires authorised project records.' },
+  { name: 'Work execution / physical progress', status: 'LIVE', detail: 'Physical-versus-expected progress and execution indicators.' },
+  { name: 'Payments monitoring', status: 'LIVE', detail: 'Payment-versus-expenditure divergence is surfaced as an audit signal.' },
+  { name: 'Asset creation monitoring', status: 'DEMO', detail: 'Asset/evidence workflow is represented; real asset registers require authorised records.' },
+  { name: 'AI/ML anomaly detection', status: 'LIVE', detail: 'Trained Isolation Forest inference combined with explainable governance rules.' },
+  { name: 'Potential fraud / irregularity screening', status: 'LIVE', detail: 'Risk signals and evidence are generated; DRISHTI does not declare fraud from an anomaly alone.' },
+  { name: 'Duplicate works', status: 'LIVE', detail: 'Description similarity and duplicate alert workflow.' },
+  { name: 'Delayed projects', status: 'LIVE', detail: 'Delay fields plus physical-versus-expected progress early-warning logic.' },
+  { name: 'Trend analysis', status: 'LIVE', detail: 'Portfolio risk/utilization views and time-grouped monitoring indicators.' },
+  { name: 'Predictive early warning', status: 'DEMO', detail: 'Risk trajectory is demonstrated; production forecasting needs authorised historical calibration.' },
+  { name: 'Risk-based alerts', status: 'LIVE', detail: 'High/medium/low risk queue with explainable signals and investigation workflow.' },
+  { name: 'Automated compliance monitoring', status: 'LIVE', detail: 'Compliance matrix, rules and traceable audit decisions.' },
+  { name: 'Decision-support dashboards', status: 'LIVE', detail: 'Executive, governance, digital-twin, geospatial, deep-dive and field-intelligence views.' },
+  { name: 'MP / State / District / Ministry views', status: 'DEMO', detail: 'Role-oriented dashboard architecture is present; nationwide authority data requires authorised feeds.' },
+  { name: 'Transparency / accountability', status: 'LIVE', detail: 'Evidence trail, human-review actions and append-only audit records.' },
+  { name: 'Reduce manual monitoring effort', status: 'LIVE', detail: 'Automated screening prioritizes high-risk works for human investigation.' },
+  { name: 'Asset / photo / GPS forensics', status: 'DEMO', detail: 'Evidence workflow and forensic fields are present; production CV is not claimed.' },
   { name: 'Collusion / relationship signals', status: 'DEMO', detail: 'Network investigation surface is demonstrated; current graph is not a live fraud finding.' },
-  { name: 'Project test records', status: 'SYNTHETIC', detail: 'Prototype work scenarios used where the supplied allocation extract lacks project-level records.' },
+  { name: 'Project test records', status: 'SYNTHETIC', detail: 'Generated scenarios are used where the supplied allocation extract lacks project-level histories.' },
   { name: 'MPLADS allocation baseline', status: 'LIVE', detail: 'Uses the supplied MPLADS Digital Governance Dashboard extract.' },
-  { name: 'Copernicus satellite imagery', status: 'EXTERNAL INTEGRATION', detail: 'Authenticated external service; OAuth credentials remain server-side in deployment.' },
-  { name: 'BHOONIDHI satellite evidence', status: 'EXTERNAL INTEGRATION', detail: 'Integration boundary only until authorised BHOONIDHI credentials/API access are available.' },
+  { name: 'Copernicus satellite evidence', status: 'EXTERNAL INTEGRATION', detail: 'External authenticated service; OAuth credentials remain server-side in deployment.' },
+  { name: 'BHOONIDHI satellite evidence', status: 'EXTERNAL INTEGRATION', detail: 'Integration boundary until authorised BHOONIDHI credentials/API access are available.' },
   { name: 'eSAKSHI / government project records', status: 'EXTERNAL INTEGRATION', detail: 'Integration contract; no government records are fabricated in the prototype.' },
 ];
 
@@ -41,7 +50,7 @@ export function PrototypeStatus() {
         <Info className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
         <div>
           <h3 className="text-sm font-semibold text-white">Prototype Evidence Status</h3>
-          <p className="mt-1 max-w-3xl text-[10px] leading-5 text-slate-500">Every SIH capability is explicitly labelled so the demo never confuses a working local capability with synthetic evidence or an external government/satellite integration.</p>
+          <p className="mt-1 max-w-3xl text-[10px] leading-5 text-slate-500">Every SIH capability is explicitly labelled so the demo never confuses a working local capability with a demonstration, synthetic evidence, or an external government/satellite integration.</p>
         </div>
       </div>
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
