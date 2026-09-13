@@ -12,6 +12,7 @@ import { ProfileSettings } from '@/components/ProfileSettings';
 import { AllocationSnapshot } from '@/components/AllocationSnapshot';
 import { DigitalTwin } from '@/components/DigitalTwin';
 import { FieldIntelligence } from '@/components/FieldIntelligence';
+import { CopernicusEvidenceAgent } from '@/components/CopernicusEvidenceAgent';
 import { wards, formatCurrency } from '@/lib/mockData';
 import type { Ward as WardType } from '@/lib/types';
 import { fetchWorkOrders } from '@/services/auditService';
@@ -228,7 +229,12 @@ export default function App() {
           {view === 'digitaltwin' && (
             <DigitalTwin workOrders={workOrders} loading={loadingOrders} onInspect={setSelectedAlert} />
           )}
-          {view === 'fieldintel' && <FieldIntelligence workOrders={workOrders} />}
+          {view === 'fieldintel' && (
+            <>
+              <FieldIntelligence workOrders={workOrders} />
+              <CopernicusEvidenceAgent workOrders={workOrders} />
+            </>
+          )}
           {view === 'governance' && <GovernanceCenter />}
 
           {view === 'overview' && (
