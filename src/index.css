@@ -6,28 +6,58 @@ body { margin:0; min-width:320px; background:#020617; font-family:Inter,ui-sans-
 button,input,select,textarea { font:inherit; }
 button { -webkit-tap-highlight-color:transparent; }
 
-/* DRISHTI light theme: keep contrast high and replace the dark dashboard surfaces consistently. */
-html.light body { background:#f5f7f6; color:#17211f; }
-html.light .bg-slate-950 { background-color:#f5f7f6 !important; }
-html.light .bg-slate-950\/50 { background-color:rgba(235,240,238,.78) !important; }
-html.light .bg-slate-950\/60 { background-color:rgba(242,246,244,.92) !important; }
-html.light .bg-slate-950\/40 { background-color:rgba(244,247,246,.95) !important; }
-html.light .bg-slate-900 { background-color:#fff !important; }
-html.light .bg-slate-900\/70 { background-color:#f7faf9 !important; }
-html.light .bg-slate-800 { background-color:#e7eeeb !important; }
-html.light .bg-slate-800\/50 { background-color:#edf2f0 !important; }
-html.light .bg-slate-700\/30 { background-color:#edf2f0 !important; }
-html.light .border-slate-800 { border-color:#d7e1dd !important; }
-html.light .border-slate-700 { border-color:#cbd7d2 !important; }
+/* DRISHTI light theme: strong neutral surfaces + high text contrast. */
+html.light body { background:#f4f7f5; color:#17211f; }
+html.light .bg-slate-950 { background-color:#f4f7f5 !important; }
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/70,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/50,
+html.light .bg-slate-950\/40 { background-color:#ffffff !important; }
+html.light .bg-slate-900,
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/70,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900\/50 { background-color:#ffffff !important; }
+html.light .bg-slate-800,
+html.light .bg-slate-800\/70,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/40 { background-color:#eef2f0 !important; }
+html.light .bg-slate-700\/30,
+html.light .bg-slate-700\/20 { background-color:#f0f4f2 !important; }
+
+/* Catch opacity variants introduced by Tailwind utility classes in existing panels. */
+html.light [class*="bg-slate-950"],
+html.light [class*="bg-slate-900"] { background-color:#ffffff !important; }
+html.light [class*="bg-slate-800"] { background-color:#eef2f0 !important; }
+html.light [class*="bg-slate-700"] { background-color:#f0f4f2 !important; }
+
+/* Remove dark gradient stops from dashboard cards in light mode. */
+html.light [class*="from-slate-"],
+html.light [class*="via-slate-"],
+html.light [class*="to-slate-"] { background-image:none !important; }
+
+html.light .border-slate-800,
+html.light [class*="border-slate-800"] { border-color:#d3ddd8 !important; }
+html.light .border-slate-700,
+html.light [class*="border-slate-700"] { border-color:#c7d3ce !important; }
 html.light .text-white { color:#17211f !important; }
-html.light .text-slate-200,html.light .text-slate-300 { color:#33413d !important; }
-html.light .text-slate-400 { color:#586761 !important; }
-html.light .text-slate-500,html.light .text-slate-600 { color:#71807a !important; }
-html.light .text-slate-700 { color:#87958f !important; }
-html.light .hover\:bg-slate-800:hover { background-color:#e7eeeb !important; }
-html.light input,html.light select,html.light textarea { color:#17211f; background:#fff; border-color:#d7e1dd; }
-html.light .shadow-2xl { box-shadow:0 25px 70px rgba(28,45,39,.16); }
-html.light .bg-gradient-to-br.from-slate-900 { background-image:linear-gradient(to bottom right,#fff,#f3f7f5) !important; }
+html.light .text-slate-200,
+html.light .text-slate-300 { color:#263832 !important; }
+html.light .text-slate-400 { color:#465850 !important; }
+html.light .text-slate-500 { color:#586a62 !important; }
+html.light .text-slate-600 { color:#64766e !important; }
+html.light .text-slate-700 { color:#53665e !important; }
+html.light [class*="text-slate-"] { text-shadow:none !important; }
+html.light .hover\:bg-slate-800:hover { background-color:#e6eeea !important; }
+html.light input,html.light select,html.light textarea { color:#17211f; background:#fff; border-color:#cbd8d2; }
+html.light input::placeholder,html.light textarea::placeholder { color:#71817a; opacity:1; }
+html.light .shadow-2xl { box-shadow:0 25px 70px rgba(28,45,39,.14); }
+
+/* Keep charts readable on the light dashboard. */
+html.light .recharts-default-tooltip { color:#17211f !important; }
 
 /* Small screens: prevent fixed dashboard elements from overflowing. */
 @media (max-width:767px) {
